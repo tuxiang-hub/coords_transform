@@ -1,0 +1,11 @@
+Metadata-Version: 1.1
+Name: coords-transform
+Version: 0.0.1
+Summary: A Python module for transforming coordinates.
+Home-page: https://github.com/tuxiang-hub/coords_transform
+Author: Uncle Xiang
+Author-email: tuxgis@126.com
+License: UNKNOWN
+Description: UNKNOWN
+Platform: UNKNOWN
+Classifier: Programming Language :: Python :: 3.7

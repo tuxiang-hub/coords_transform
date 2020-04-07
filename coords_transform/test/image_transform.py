@@ -7,7 +7,7 @@
 
 from osgeo import gdal,osr
 import os,sys
-from . import public_func
+import public_func
 
 class ImageTransform(public_func.PublicFuncCoord,public_func.PublicFuncImage):
     def __init__(self):
@@ -84,3 +84,7 @@ class ImageTransform(public_func.PublicFuncCoord,public_func.PublicFuncImage):
             print('Error: The data coordinate systemtype must be WGS84')
             sys.exit()
 
+ImageTransform_class = ImageTransform()
+inpath = r"E:\HN_Image\栅格数据偏移\GF6_PMS_E114.4_N27.6_20190123_L1A1119841901-MUX2.tif"
+outpath = r"E:\HN_Image\栅格数据偏移\GCJ02.tif"
+ImageTransform_class.image_transform(inpath,outpath,"w2g")

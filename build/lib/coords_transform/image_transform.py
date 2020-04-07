@@ -8,8 +8,9 @@
 from osgeo import gdal,osr
 import os,sys
 from . import public_func
+from . import coords_transform
 
-class ImageTransform(public_func.PublicFuncCoord,public_func.PublicFuncImage):
+class ImageTransform(public_func.PublicFuncImage,coords_transform.CoordTrans):
     def __init__(self):
         super(ImageTransform, self).__init__()
 
@@ -41,25 +42,25 @@ class ImageTransform(public_func.PublicFuncCoord,public_func.PublicFuncImage):
             new_xy_list = []
             if transform_method == 'g2b':
                 for i in range(len(WGS84_xy_list)):
-                    new_xy_list.append(self._gcj02_to_bd09(WGS84_xy_list[i][0], WGS84_xy_list[i][1]))
+                    new_xy_list.append(self.gcj02_to_bd09(WGS84_xy_list[i][0], WGS84_xy_list[i][1]))
             elif transform_method == 'b2g':
                 for i in range(len(WGS84_xy_list)):
-                    new_xy_list.append(self._bd09_to_gcj02(WGS84_xy_list[i][0], WGS84_xy_list[i][1]))
+                    new_xy_list.append(self.bd09_to_gcj02(WGS84_xy_list[i][0], WGS84_xy_list[i][1]))
             elif transform_method == 'w2g':
                 for i in range(len(WGS84_xy_list)):
-                    new_xy_list.append(self._wgs84_to_gcj02(WGS84_xy_list[i][0], WGS84_xy_list[i][1]))
+                    new_xy_list.append(self.wgs84_to_gcj02(WGS84_xy_list[i][0], WGS84_xy_list[i][1]))
             elif transform_method == 'g2w':
                 for i in range(len(WGS84_xy_list)):
-                    new_xy_list.append(self._gcj02_to_wgs84(WGS84_xy_list[i][0], WGS84_xy_list[i][1]))
+                    new_xy_list.append(self.gcj02_to_wgs84(WGS84_xy_list[i][0], WGS84_xy_list[i][1]))
             elif transform_method == 'b2w':
                 for i in range(len(WGS84_xy_list)):
-                    new_xy_list.append(self._bd09_to_wgs84(WGS84_xy_list[i][0], WGS84_xy_list[i][1]))
+                    new_xy_list.append(self.bd09_to_wgs84(WGS84_xy_list[i][0], WGS84_xy_list[i][1]))
             elif transform_method == 'w2b':
                 for i in range(len(WGS84_xy_list)):
-                    new_xy_list.append(self._wgs84_to_bd09(WGS84_xy_list[i][0], WGS84_xy_list[i][1]))
+                    new_xy_list.append(self.wgs84_to_bd09(WGS84_xy_list[i][0], WGS84_xy_list[i][1]))
             elif transform_method == 'w2b_bdapi':
                 for i in range(len(WGS84_xy_list)):
-                    new_xy_list.append(self._wgs84_to_bd09_from_bdapi(WGS84_xy_list[i][0], WGS84_xy_list[i][1]))
+                    new_xy_list.append(self.wgs84_to_bd09_from_bdapi(WGS84_xy_list[i][0], WGS84_xy_list[i][1]))
             else:
                 print('Usage: transform_method must be in one of g2b, b2g, w2g, g2w, b2w, w2b, w2b_bdapi')
                 sys.exit()
