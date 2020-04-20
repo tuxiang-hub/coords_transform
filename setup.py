@@ -13,7 +13,7 @@ from setuptools import find_packages
 
 setup(
     name='coords_transform',
-    version='0.0.2-20200407',
+    version='0.0.3-20200420',
     packages = find_packages(),  # 查找包的路径
     include_package_data=True,
     author='Uncle Xiang',

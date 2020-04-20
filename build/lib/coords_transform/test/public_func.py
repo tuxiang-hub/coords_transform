@@ -213,18 +213,6 @@ class PublicFuncImage(PublicFunc):
         return ds,sr,rows,cols,geotransform
 
 class PublicFuncVector(PublicFuncCoord,PublicFunc):
-    def _coordinate_system_conversion_vector(self, src_dataset, dst_dataset, src_sr, dst_sr):
-        '''
-        矢量数据的坐标转换
-        :param src_dataset:输入数据
-        :param dst_dataset:输出数据
-        :param src_sr:格式为"EPSG:4212"
-        :param dst_sr:格式为"EPSG:4326"
-        :return:
-        '''
-        gdal.SetConfigOption("GDAL_FILENAME_IS_UTF8", "YES")
-        gdal.SetConfigOption("SHAPE_ENCODING", "GBK")
-        gdal.VectorTranslate(src_dataset, dst_dataset, srcSRS=src_sr, dstSRS=dst_sr)
     '''
     def _read_vector(self,src_file):
         gdal.SetConfigOption("GDAL_FILENAME_IS_UTF8", "YES")
@@ -355,7 +343,7 @@ class PublicFuncVector(PublicFuncCoord,PublicFunc):
         :return:
         '''
         gdal.SetConfigOption("GDAL_FILENAME_IS_UTF8", "YES")
-        gdal.SetConfigOption("SHAPE_ENCODING", "GBK")
+        gdal.SetConfigOption("SHAPE_ENCODING", "")
         ogr.RegisterAll()
         ds = ogr.Open(src_file, 0)
         if ds is None:

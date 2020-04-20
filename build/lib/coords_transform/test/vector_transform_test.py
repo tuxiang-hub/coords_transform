@@ -5,125 +5,120 @@
 # Time: 2020/3/19 17:11
 # version: python 37
 
-from osgeo import gdal,osr,ogr
-from shapely.wkt import dumps, loads
-import json,geojson
-src_file = r"E:\HN_Image\test\mutilpolygon.shp"
-gdal.SetConfigOption("GDAL_FILENAME_IS_UTF8","NO")
-gdal.SetConfigOption("SHAPE_ENCODING","")
-ogr.RegisterAll()
-ds = ogr.Open(src_file, update = 1)
-#print(dir(ds))
-print(ds.GetName())
-driver = ds.GetDriver()
-print(driver.GetName())
-#print(dir(driver))
-oLayer = ds.GetLayerByIndex(0)
-#print(oLayer.GetName())
-#ds.CopyLayer(oLayer.GetName(),"test")
-#print(oLayer.GetSpatialRef())
-print(oLayer.GetFeatureCount())
-oDefn = oLayer.GetLayerDefn()#获取图层的属性表结构
-iFieldCount = oDefn.GetFieldCount()
-print("字段个数",iFieldCount)
+import sys,json
+from tqdm import tqdm
+from osgeo import ogr,gdal
+from shapely.geometry import asShape
+import public_func
+import coords_transform
 
-#############创建##############
-outDriverName = "ESRI Shapefile"
-outDriver = ogr.GetDriverByName(outDriverName)
-# 创建数据源
-outDS = outDriver.CreateDataSource(r"E:\HN_Image\test\boundary_out.shp")
-# 创建图层，创建一个多边形图层，这里没有指定空间参考，如果需要的话，需要在这里进行指定
-papszLCO = []
-outLayer = outDS.CreateLayer("TestPolygon", None, ogr.wkbPolygon, papszLCO)
+class VectorTransform(public_func.PublicFuncVector,coords_transform.CoordTrans):
+    def __init__(self):
+        super(VectorTransform, self).__init__()
 
-# 下面创建属性表
-# 先创建一个叫FieldID的整型属性
-#outFieldID = ogr.FieldDefn("FieldID", ogr.OFTInteger)
-#outLayer.CreateField(outFieldID, 1)
-filed_list = []
-for iAttr in range(iFieldCount):
-    oField = oDefn.GetFieldDefn(iAttr)
-    print(oField.GetNameRef(),oField.GetType(),oField.GetFieldTypeName(oField.GetType()), oField.GetWidth(),oField.GetPrecision())
-    filed_list.append((oField.GetNameRef(),oField.GetType(),oField.GetFieldTypeName(oField.GetType()), oField.GetWidth(),oField.GetPrecision()))
-    outFieldID = ogr.FieldDefn(oField.GetNameRef(), oField.GetType())
-    outLayer.CreateField(outFieldID, 1)#创建字段，参数1为兼容设置
-outfeatureddefn = outLayer.GetLayerDefn()
-feature_list = []
-for feature in oLayer:
-    dic = {}
-    for iField in range(iFieldCount):
-        oFieldDefn = oDefn.GetFieldDefn(iField)
-        line = " %s (%s) = " % (oFieldDefn.GetNameRef(), ogr.GetFieldTypeName(oFieldDefn.GetType()))
-
-        if feature.IsFieldSet(iField):
-            line = line + "%s" % (feature.GetFieldAsString(iField))
-            dic.update({oFieldDefn.GetNameRef():feature.GetFieldAsString(iField)})
+    def _judge_vector_type(self,geom_type,WGS84_xy_list,func):
+        if geom_type == "Point":
+            WGS84_xy_list[0],WGS84_xy_list[1] = func(WGS84_xy_list[0],WGS84_xy_list[1])
+        elif geom_type == "MultiPoint" or geom_type == "LineString":
+            for i in range(len(WGS84_xy_list)):
+                WGS84_xy_list[i][0], WGS84_xy_list[i][1] = func(WGS84_xy_list[i][0], WGS84_xy_list[i][1])
+        elif geom_type == "Polygon" or geom_type == "MultiLineString":
+            for i in range(len(WGS84_xy_list)):
+                for j in range(len(WGS84_xy_list[i])):
+                    WGS84_xy_list[i][j][0], WGS84_xy_list[i][j][1] = func(WGS84_xy_list[i][j][0], WGS84_xy_list[i][j][1])
+        elif geom_type == "MultiPolygon":
+            for i in range(len(WGS84_xy_list)):
+                for j in range(len(WGS84_xy_list[i])):
+                    for k in range(len(WGS84_xy_list[i][j])):
+                        WGS84_xy_list[i][j][k][0], WGS84_xy_list[i][j][k][1] = func(WGS84_xy_list[i][j][k][0],
+                                                                          WGS84_xy_list[i][j][k][1])
         else:
-            line = line + "(null)"
+            print('warning: "{}" This type is not currently supported '.format(geom_type))
+            sys.exit(1)
 
-        #print(line)
-
-    # 获取要素中的几何体
-    oGeometry = feature.GetGeometryRef()
-    wkt = oGeometry.ExportToJson()
-    print(geojson.loads(wkt))
-    #dic.update({"wkt": wkt})
-    #feature_list.append(dic)
-
-#print(feature_list)
-'''
-for i in range(len(feature_list)):
-    outfeat = ogr.Feature(outfeatureddefn)
-    dict = feature_list[i]
-    for key in dict:
-        if key == "wkt":
-            polygon = ogr.CreateGeometryFromWkt(dict[key])
-            outfeat.SetGeometry(polygon)
+    def _vector_coord_transform(self,coord_json,transform_method):
+        WGS84_xy_list = coord_json['coordinates']
+        geom_type = coord_json['type']
+        if transform_method == 'g2b':
+            self._judge_vector_type(geom_type, WGS84_xy_list, self.gcj02_to_bd09)
+        elif transform_method == 'b2g':
+            self._judge_vector_type(geom_type,WGS84_xy_list,self.bd09_to_gcj02)
+        elif transform_method == 'w2g':
+            self._judge_vector_type(geom_type,WGS84_xy_list,self.wgs84_to_gcj02)
+        elif transform_method == 'g2w':
+            self._judge_vector_type(geom_type,WGS84_xy_list,self.gcj02_to_wgs84)
+        elif transform_method == 'b2w':
+            self._judge_vector_type(geom_type,WGS84_xy_list,self.bd09_to_wgs84)
+        elif transform_method == 'w2b':
+            self._judge_vector_type(geom_type,WGS84_xy_list,self.wgs84_to_bd09)
+        elif transform_method == 'w2b_bdapi':
+            self._judge_vector_type(geom_type,WGS84_xy_list,self.wgs84_to_bd09_from_bdapi)
         else:
-            outfeat.SetField(key, dict[key])
-        #print(feature_list[i][key])
-    outLayer.CreateFeature(outfeat)
-    
-    outfeat.SetGeometry(feature_list[i]['geom'])
-    for key in feature_list[i]:
-        if key != "geom":
-            outfeat.SetField(key, feature_list[i][key])
-    
-    '''
-print("done!!!")
-'''
-print(dir(oLayer))
-print()
-print("111",oLayer.GetGeomType())
-#filed_defn = oLayer.GetLayerDefn()
-#iFieldCount = filed_defn.GetFieldCount()
-oFeature = oLayer.GetFeature(0)
-#print(dir(oFeature))
-geom = oFeature.GetGeometryRef()
+            print('Usage: transform_method must be in one of g2b, b2g, w2g, g2w, b2w, w2b, w2b_bdapi')
+            sys.exit()
 
-#print(geom.ExportToWkt())
-wkt2 = "POLYGON ((114.837484008666 28.1090485692271,115.973553274691 28.1090485692271,115.973553274691 27.1502224596923,114.837484008666 27.1502224596923,114.837484008666 28.1090485692271))"
-polygon = ogr.CreateGeometryFromWkt(wkt2)
-oFeature.SetGeometryDirectly(polygon)
+    def vector_transform(self,src_file,dst_file,transform_method,format="shp"):
+        ogr.RegisterAll()
+        gdal.SetConfigOption("GDAL_FILENAME_IS_UTF8", "YES")
+        gdal.SetConfigOption("SHAPE_ENCODING", "")
+        ds = ogr.Open(src_file, 0)
+        if ds is None:
+            print('Error: Could not open {}'.format(src_file))
+            sys.exit(1)
+        layer = ds.GetLayer()  # shp默认是一个layer
+        if layer == None:
+            print("Error: The layer did not open correctly!")
+            sys.exit(1)
+        sr = layer.GetSpatialRef()
+        #judge = self._judeg_isornot_wgs84(sr)
+        judge = 1
+        print("judge:", judge)
+        if judge == 1:
+            print(type(layer))
+            print("读取完毕！")
+            geom_type = layer.GetGeomType()#图层几何类型
+            print("geomtype",geom_type)
+            sr = layer.GetSpatialRef()
+            #创建输出的layer
+            print("开始创建数据源")
+            outds,outlayer = self._write_vector(dst_file,geom_type,sr)
+            print("创建数据源完毕！")
+            '''属性表结构获取与创建'''
+            oDefn = layer.GetLayerDefn()
+            iFieldCount = oDefn.GetFieldCount()#字段个数
+            for i in range(iFieldCount):
+                field_obj = oDefn.GetFieldDefn(i)
+                (fieldname,fieldtype,fieldlength)=self._get_attribute_fieldname(field_obj)
+                print(fieldname,fieldtype,fieldlength)
+                self._set_attribute_fieldname(outlayer, fieldname, fieldtype,fieldlength)#输出图层的属性表结构创建
 
-geom = oFeature.GetGeometryRef()
-#print(geom.ExportToWkt())
-oFeature.Destroy()
+            feature_count = layer.GetFeatureCount()
+            print("总计要素数目：",feature_count)
+            outfeatureddefn = outlayer.GetLayerDefn()
+            for j in tqdm(range(feature_count)):
+                #print("j: ",j)
+                feature = layer.GetFeature(j)
+                geom = feature.GetGeometryRef()  # wktvalue的字符串
+                wkt_json = json.loads(geom.ExportToJson())#json格式字符串
+                #field_count = feature.GetFieldCount()
+                #fieldlist = feature.GetFieldAsString(1)
+                #print("fieldlist",fieldlist)
+                #print(feature.ExportToJson())
+                #print(dir(feature))
+                #field_items = feature.items()
+                #print(field_items)
+                '''计算wkt坐标的偏转'''
+                self._vector_coord_transform(wkt_json, transform_method)
+                new_geom = asShape(wkt_json)
+                shape = ogr.CreateGeometryFromWkt(str(new_geom))
+                outfeature = ogr.Feature(outfeatureddefn)
+                outfeature.SetFrom(feature)
+                outfeature.SetGeometry(shape)
+                outlayer.CreateFeature(outfeature)
+            outds.Destroy()
 
-for feature in oLayer:
-    geom = feature.GetGeometryRef()
-    print(type(geom.ExportToJson()))
-    geom_json = json.loads(geom.ExportToJson())
-    geom_type = geom_json['type']
-    geom_coord = geom_json['coordinates']
-    print(geom_type)
-    print(geom_coord)
-    break
-'''
-'''
-wkt = geom.ExportToWkt()
-print(wkt)
-ss = loads(wkt)
-print(ss)
-print(ss.exterior.coords[:])
-'''
+
+VectorTransform_class = VectorTransform()
+inpath = r"E:\HN_Image\矢量数据偏移\常德1-2月土地执法数据GCJ02\所有监测图斑WGS84.shp"
+outpath = r"E:\HN_Image\矢量数据偏移\常德1-2月土地执法数据GCJ02\所有监测图斑GCJ02.shp"
+VectorTransform_class.vector_transform(inpath,outpath,"w2g")
