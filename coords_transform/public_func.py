@@ -10,6 +10,7 @@ from osgeo import gdal,osr,ogr
 from urllib.request import urlopen
 from shapely.geometry import asShape
 from tqdm import tqdm
+import struct
 
 
 class PublicFuncCoord(object):
@@ -148,6 +149,10 @@ class PublicFuncCoord(object):
         return (baidu_x, baidu_y)
 
 class PublicFunc(object):
+    def __init__(self):
+        gdal.SetConfigOption("GDAL_FILENAME_IS_UTF8", "YES")
+        gdal.SetConfigOption("SHAPE_ENCODING", "")
+
     def _judeg_isornot_wgs84(self,in_sr):
         '''
         判断输入的数据集是否是WGS84坐标系，矢量栅格公用
@@ -222,30 +227,8 @@ class PublicFuncVector(PublicFuncCoord,PublicFunc):
         :param dst_sr:格式为"EPSG:4326"
         :return:
         '''
-        gdal.SetConfigOption("GDAL_FILENAME_IS_UTF8", "YES")
-        gdal.SetConfigOption("SHAPE_ENCODING", "GBK")
         gdal.VectorTranslate(src_dataset, dst_dataset, srcSRS=src_sr, dstSRS=dst_sr)
-    '''
-    def _read_vector(self,src_file):
-        gdal.SetConfigOption("GDAL_FILENAME_IS_UTF8", "YES")
-        gdal.SetConfigOption("SHAPE_ENCODING", "")
-        ogr.RegisterAll()
-        ds = ogr.Open(src_file,0)
-        if ds is None:
-            print('Error: Could not open {}'.format(src_file))
-            sys.exit(1)
-        oLayer = ds.GetLayer()  # shp默认是一个layer
-        if oLayer == None:
-            print("Error: The layer did not open correctly!")
-            sys.exit(1)
-        sr = oLayer.GetSpatialRef()
-        judge = self._judeg_isornot_wgs84(sr)
-        if judge == 1:
-            return oLayer
-        else:
-            print("Warning: The coordinate system of sourse vector file is not WGS84!")
-            sys.exit(1)
-    '''
+
 
     def _get_attribute_fieldname(self,in_fieldobject):
         '''
@@ -257,7 +240,6 @@ class PublicFuncVector(PublicFuncCoord,PublicFunc):
 
     def _write_vector(self, dst_file, geom_type, spatial_reference):
         '''
-
         :param dst_file:
         :param geom_type:
         :param spatial_reference:
@@ -345,6 +327,12 @@ class PublicFuncVector(PublicFuncCoord,PublicFunc):
             print('Usage: transform_method must be in one of g2b, b2g, w2g, g2w, b2w, w2b, w2b_bdapi')
             sys.exit()
 
+    def _setLDID(self, dbf, code):
+        with open(dbf, 'r+b') as f:
+            print(f)
+            f.seek(29, 0)
+            f.write(struct.pack('B', code))
+
     def _vector_transform(self,src_file,dst_file,transform_method,format="shp"):
         '''
 
@@ -354,8 +342,6 @@ class PublicFuncVector(PublicFuncCoord,PublicFunc):
         :param format:
         :return:
         '''
-        gdal.SetConfigOption("GDAL_FILENAME_IS_UTF8", "YES")
-        gdal.SetConfigOption("SHAPE_ENCODING", "GBK")
         ogr.RegisterAll()
         ds = ogr.Open(src_file, 0)
         if ds is None:
@@ -396,6 +382,10 @@ class PublicFuncVector(PublicFuncCoord,PublicFunc):
                 outfeature.SetGeometry(shape)
                 outlayer.CreateFeature(outfeature)
             outds.Destroy()
+            # 输出的数据编码和输入保持一致
+            sr_dat = open(src_file[:-3] + "dbf", 'rb').read(30)[29:]
+            sr_id = struct.unpack('B', sr_dat)[0]
+            self._setLDID(dst_file[:-3] + "dbf", sr_id)
         else:
             print("Warning: The coordinate system of sourse vector file is not WGS84!")
             sys.exit(1)

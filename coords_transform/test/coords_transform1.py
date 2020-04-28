@@ -5,9 +5,12 @@
 # Time: 2020/3/19 17:08
 # version: python 
 
-from . import public_func
+import public_func
 
 class CoordTrans(public_func.PublicFuncCoord):
+    def __init__(self):
+        super(CoordTrans, self).__init__()
+        pass
     '''
     def __init__(self):
         super(CoordTrans, self).__init__()

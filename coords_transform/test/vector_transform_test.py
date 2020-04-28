@@ -10,9 +10,10 @@ from tqdm import tqdm
 from osgeo import ogr,gdal
 from shapely.geometry import asShape
 import public_func
-import coords_transform
+import coords_transform1
+import struct
 
-class VectorTransform(public_func.PublicFuncVector,coords_transform.CoordTrans):
+class VectorTransform(public_func.PublicFuncVector,coords_transform1.CoordTrans):
     def __init__(self):
         super(VectorTransform, self).__init__()
 
@@ -56,6 +57,12 @@ class VectorTransform(public_func.PublicFuncVector,coords_transform.CoordTrans):
         else:
             print('Usage: transform_method must be in one of g2b, b2g, w2g, g2w, b2w, w2b, w2b_bdapi')
             sys.exit()
+
+    def _setLDID(self, dbf, code):
+        with open(dbf, 'r+b') as f:
+            print(f)
+            f.seek(29, 0)
+            f.write(struct.pack('B', code))
 
     def vector_transform(self,src_file,dst_file,transform_method,format="shp"):
         ogr.RegisterAll()
@@ -116,9 +123,14 @@ class VectorTransform(public_func.PublicFuncVector,coords_transform.CoordTrans):
                 outfeature.SetGeometry(shape)
                 outlayer.CreateFeature(outfeature)
             outds.Destroy()
+            # 输出的数据编码和输入保持一致
+
+            sr_dat = open(src_file[:-3]+"dbf", 'rb').read(30)[29:]
+            sr_id = struct.unpack('B', sr_dat)[0]
+            self._setLDID(dst_file[:-3]+"dbf", sr_id)
 
 
 VectorTransform_class = VectorTransform()
-inpath = r"E:\HN_Image\矢量数据偏移\常德1-2月土地执法数据GCJ02\所有监测图斑WGS84.shp"
-outpath = r"E:\HN_Image\矢量数据偏移\常德1-2月土地执法数据GCJ02\所有监测图斑GCJ02.shp"
+inpath = r"E:\HN_Image\2014-2018曾国藩矢量\2014-2018年曾国藩变化图斑WGS84.shp"
+outpath = r"E:\HN_Image\2014-2018曾国藩矢量\2014-2018年曾国藩变化图斑GCJ02.shp"
 VectorTransform_class.vector_transform(inpath,outpath,"w2g")
